@@ -64,18 +64,23 @@ button:focus-visible,input:focus-visible{outline:3px solid #fff;outline-offset:2
 [hidden]{display:none!important}
 @media(max-width:480px){form{flex-direction:column}.go{padding:15px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-.pr-only{display:none}
-@page{margin:20mm 22mm 24mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font:9pt "Instrument Sans",Arial,sans-serif;color:#777}}
+.pr-only,.pr-head{display:none}
+@page{margin:22mm 24mm 24mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font:9pt "Instrument Sans",Arial,sans-serif;color:#888}}
 @media print{
 html,body{background:#fff!important;height:auto;min-height:0}
-body{display:block;padding:0;color:#111;font-size:12pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-main{max-width:none;text-align:left}
+body{display:block;padding:0;color:#1a1a1a;font-size:12pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+main{max-width:none}
 #gate,.actions,.note{display:none!important}
-.letter{display:block;background:#fff;color:#111;box-shadow:none;animation:none;transform:none;opacity:1;border:0;border-top:3pt solid var(--wax);border-radius:0;padding:16pt 0 0}
-.letter h2{font-size:26pt;line-height:1.15;color:#000;margin:0 0 6pt;break-after:avoid}
-.date{color:#555;font-size:10pt;margin:0 0 18pt;padding-bottom:12pt;border-bottom:.5pt solid #bbb}
-.body{font-size:12.5pt;line-height:1.7;color:#111;max-width:none;orphans:3;widows:3;hyphens:auto;-webkit-hyphens:auto}
-.pr-only{display:block;margin-top:28pt;padding-top:8pt;border-top:.5pt solid #ccc;font:9pt "Instrument Sans",Arial,sans-serif;color:#777;text-align:center;break-inside:avoid}
+.letter{display:block;background:#fff;color:#1a1a1a;box-shadow:none;animation:none;transform:none;opacity:1;border:0;border-radius:0;padding:0;text-align:center}
+.pr-head{display:block;margin:0 0 14pt;break-inside:avoid}
+.pr-head svg{width:36pt;height:36pt}
+.letter h2{font-size:28pt;line-height:1.15;font-weight:500;color:#000;margin:0 auto 8pt;max-width:30ch;letter-spacing:-.01em;break-after:avoid}
+.date{color:#666;font:italic 10.5pt/1.4 Newsreader,Georgia,serif;margin:0 0 26pt}
+.date::after{content:"";display:block;height:1pt;width:38%;margin:16pt auto 0;background:linear-gradient(90deg,transparent,var(--wax),transparent)}
+.body{text-align:left;font-size:12.5pt;line-height:1.75;color:#1a1a1a;max-width:34em;margin:0 auto;orphans:3;widows:3;hyphens:auto;-webkit-hyphens:auto}
+.body.dropcap::first-letter{float:left;font-size:46pt;line-height:.82;padding:4pt 7pt 0 0;color:var(--wax);font-weight:500}
+#prFoot{display:block;margin:34pt auto 0;text-align:center;font:9pt "Instrument Sans",Arial,sans-serif;color:#888;break-inside:avoid}
+#prFoot::before{content:"";display:block;width:7pt;height:7pt;border-radius:50%;background:var(--wax);margin:0 auto 9pt}
 }
 </style>
 </head>
@@ -99,6 +104,7 @@ main{max-width:none;text-align:left}
   </section>
 
   <article class="letter" id="letter" hidden>
+    <div class="pr-head" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#c8394b"/><circle cx="24" cy="24" r="17" fill="none" stroke="#8e2232" stroke-width="1.5" opacity=".6"/><path transform="translate(12 12)" fill="#fff" fill-opacity=".88" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9z"/></svg></div>
     <h2 id="title"></h2>
     <p class="date" id="date"></p>
     <div class="body" id="body"></div>
@@ -164,7 +170,7 @@ async function openNote(code) {
       setEnv(); fails = 0; say("");
       $("title").textContent = r.title || "A note for you";
       $("date").textContent = new Date(r.created_at).toLocaleDateString(undefined, { dateStyle: "long" });
-      $("body").textContent = r.body;                  // textContent: nothing in a note can inject HTML
+      $("body").textContent = r.body; $("body").classList.toggle("dropcap", r.body.trim().length > 300);                  // textContent: nothing in a note can inject HTML
       $("code").value = "";
       $("env").classList.add("open");
       await wait(calm ? 0 : 750);
