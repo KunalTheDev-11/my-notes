@@ -1,0 +1,48 @@
+Claude
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Keepalive · YML
+name: Keep database awake
+on:
+  schedule:
+    - cron: "0 6 */3 * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          curl -fsS -X POST "https://llcegxuzisqsnsgxigoh.supabase.co/rest/v1/rpc/get_note" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsY2VneHV6aXNxc25zZ3hpZ29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTE5NDEsImV4cCI6MjEwOTAyNzk0MX0.vNTPbKZfInYf8KgFX1zRQn1g--XKloJenU85imfljFA" -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsY2VneHV6aXNxc25zZ3hpZ29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTE5NDEsImV4cCI6MjEwOTAyNzk0MX0.vNTPbKZfInYf8KgFX1zRQn1g--XKloJenU85imfljFA" \
+            -H "Content-Type: application/json" -d '{"p_code":"keepalive-ping"}'
+ 
+Claude finished the response
