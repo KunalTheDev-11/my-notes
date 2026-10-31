@@ -64,13 +64,26 @@ button:focus-visible,input:focus-visible{outline:3px solid #fff;outline-offset:2
 [hidden]{display:none!important}
 @media(max-width:480px){form{flex-direction:column}.go{padding:15px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+[data-theme=ocean]{--wax:#1f9d9a;--wax2:#136b6a}
+[data-theme=gold]{--wax:#c4922a;--wax2:#8a6314}
+[data-theme=violet]{--wax:#7b5cd6;--wax2:#4f3a9e}
+[data-theme=forest]{--wax:#3f9a5f;--wax2:#276b3e}
+.from{font:italic 1.2rem Newsreader,Georgia,serif;text-align:right;margin:22px 0 0}
+.from:empty{display:none}
+#reply{margin-top:26px;padding-top:20px;border-top:1px solid #d5dae8}
+#reply label{display:block;font-weight:500;margin-bottom:8px}
+#reply textarea{width:100%;min-height:90px;resize:vertical;font:1rem/1.5 "Instrument Sans",sans-serif;color:var(--text);background:#fff;border:1.5px solid #c3c9dc;border-radius:10px;padding:12px;outline:none}
+#reply textarea:focus{border-color:var(--wax);box-shadow:0 0 0 3px rgba(120,120,160,.2)}
+#reply .ghost{margin-top:10px}
+#reply .msg{min-height:0}
 .pr-only,.pr-head{display:none}
 @page{margin:22mm 24mm 24mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font:9pt "Instrument Sans",Arial,sans-serif;color:#888}}
 @media print{
 html,body{background:#fff!important;height:auto;min-height:0}
 body{display:block;padding:0;color:#1a1a1a;font-size:12pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 main{max-width:none}
-#gate,.actions,.note{display:none!important}
+#gate,.actions,.note,#reply{display:none!important}
+.from{max-width:34em;margin:20pt auto 0;text-align:right;font-size:13pt;color:#333}
 .letter{display:block;background:#fff;color:#1a1a1a;box-shadow:none;animation:none;transform:none;opacity:1;border:0;border-radius:0;padding:0;text-align:center}
 .pr-head{display:block;margin:0 0 14pt;break-inside:avoid}
 .pr-head svg{width:36pt;height:36pt}
@@ -104,16 +117,23 @@ main{max-width:none}
   </section>
 
   <article class="letter" id="letter" hidden>
-    <div class="pr-head" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#c8394b"/><circle cx="24" cy="24" r="17" fill="none" stroke="#8e2232" stroke-width="1.5" opacity=".6"/><path transform="translate(12 12)" fill="#fff" fill-opacity=".88" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9z"/></svg></div>
+    <div class="pr-head" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" style="fill:var(--wax)"/><circle cx="24" cy="24" r="17" fill="none" style="stroke:var(--wax2)" stroke-width="1.5" opacity=".6"/><path transform="translate(12 12)" fill="#fff" fill-opacity=".88" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9z"/></svg></div>
     <h2 id="title"></h2>
     <p class="date" id="date"></p>
     <div class="body" id="body"></div>
+    <p class="from" id="from"></p>
+    <div id="reply" hidden>
+      <label for="replyText">Want to write back?</label>
+      <textarea id="replyText" maxlength="2000" placeholder="Your message…"></textarea>
+      <button class="ghost" id="sendReply" type="button">Send reply</button>
+      <p class="msg" id="replyMsg" role="status" aria-live="polite"></p>
+    </div>
     <div class="actions">
       <button class="ghost" id="copy">Copy note</button>
       <button class="ghost" id="print">Print or save PDF</button>
       <button class="ghost" id="lock">Close note</button>
     </div>
-    <p class="note">This note closes itself after 5 minutes of inactivity.</p>
+    <p class="note" id="noteInfo">This note closes itself after 5 minutes of inactivity.</p>
     <p class="pr-only" id="prFoot"></p>
   </article>
 </main>
@@ -127,9 +147,10 @@ const $ = id => document.getElementById(id);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const say = (t, info) => { $("msg").textContent = t; $("msg").className = "msg" + (info ? " info" : ""); };
-let fails = 0, lockUntil = 0, ticker, idle, busy = false;
+let fails = 0, lockUntil = 0, ticker, idle, busy = false, currentCode = "";
 
-async function fetchNote(code) {
+const fetchNote = code => rpc("get_note", { p_code: code });
+async function rpc(fn, args) {
   if (!navigator.onLine) throw new Error("offline");
   const headers = { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" };
   if (!SUPABASE_ANON_KEY.startsWith("sb_")) headers.Authorization = "Bearer " + SUPABASE_ANON_KEY;
@@ -137,8 +158,8 @@ async function fetchNote(code) {
   for (let i = 0; i < 3; i++) {                        // retry flaky connections
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 10000);
     try {
-      const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_note", {
-        method: "POST", headers, signal: ctl.signal, body: JSON.stringify({ p_code: code })
+      const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + fn, {
+        method: "POST", headers, signal: ctl.signal, body: JSON.stringify(args)
       });
       if (res.status >= 500) throw new Error("server");
       if (!res.ok) throw new Error("bad");
@@ -171,11 +192,21 @@ async function openNote(code) {
       $("title").textContent = r.title || "A note for you";
       $("date").textContent = new Date(r.created_at).toLocaleDateString(undefined, { dateStyle: "long" });
       $("body").textContent = r.body; $("body").classList.toggle("dropcap", r.body.trim().length > 300);                  // textContent: nothing in a note can inject HTML
+      currentCode = code;
       $("code").value = "";
+      document.documentElement.dataset.theme = r.theme || "wax";
+      $("from").textContent = r.sender ? "— " + r.sender : "";
+      $("reply").hidden = !r.allow_reply; $("replyText").value = ""; $("replyMsg").textContent = "";
+      let info = "This note closes itself after 5 minutes of inactivity.";
+      if (r.views_left === 0) info += " It can’t be opened again once you close it.";
+      else if (r.views_left > 0) info += " It can be opened " + r.views_left + " more time" + (r.views_left === 1 ? "" : "s") + ".";
+      $("noteInfo").textContent = info;
       $("env").classList.add("open");
       await wait(calm ? 0 : 750);
       $("gate").hidden = true; $("letter").hidden = false;
       window.scrollTo(0, 0); armIdle();
+    } else if (r && r.error === "locked") {
+      setEnv(); say("This note is sealed until " + new Date(r.unlock_at).toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" }) + ". Come back then.", true);
     } else if (r && r.error === "busy") {
       setEnv(); say("Lots of guesses right now. Wait a minute and try again.");
     } else {
@@ -194,6 +225,7 @@ async function openNote(code) {
 function closeNote() {
   clearTimeout(idle);
   $("letter").hidden = true; $("body").textContent = ""; $("title").textContent = "";
+  currentCode = ""; delete document.documentElement.dataset.theme; $("from").textContent = ""; $("replyText").value = "";
   $("gate").hidden = false; setEnv(); $("env").classList.remove("open");
   history.replaceState(null, "", location.pathname + location.search);
   $("code").focus();
@@ -211,6 +243,16 @@ $("eye").onclick = () => {
   $("eye").setAttribute("aria-label", show ? "Hide code" : "Show code");
 };
 $("lock").onclick = closeNote;
+$("sendReply").onclick = async () => {
+  const m = $("replyText").value.trim(); if (!m || !currentCode) return;
+  const out = $("replyMsg"); $("sendReply").disabled = true; out.className = "msg info"; out.textContent = "Sending…";
+  try {
+    const r = await rpc("send_reply", { p_code: currentCode, p_message: m });
+    if (r && r.ok) { out.textContent = "Sent. Thank you!"; $("replyText").value = ""; }
+    else { out.className = "msg"; out.textContent = r && r.error === "busy" ? "You’ve sent a lot of messages. Try again later." : "Couldn’t send that. Please try again."; }
+  } catch { out.className = "msg"; out.textContent = "Couldn’t reach the server. Please try again."; }
+  $("sendReply").disabled = false;
+};
 $("print").onclick = () => print();
 let savedTitle = document.title;
 addEventListener("beforeprint", () => {
