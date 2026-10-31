@@ -75,6 +75,50 @@ button:focus-visible,input:focus-visible{outline:3px solid #fff;outline-offset:2
 [hidden]{display:none!important}
 @media(max-width:480px){form{flex-direction:column}.go{padding:15px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* ---- animations ---- */
+main{position:relative;z-index:1}
+.sky{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.sky::before,.sky::after{content:"";position:absolute;width:60vmax;height:60vmax;border-radius:50%;filter:blur(90px)}
+.sky::before{background:#3b4a9a;opacity:.28;left:-20vmax;top:-28vmax;animation:drift 26s ease-in-out infinite alternate}
+.sky::after{background:var(--wax);opacity:.12;right:-26vmax;bottom:-32vmax;animation:drift 32s ease-in-out infinite alternate-reverse}
+.sky i{position:absolute;width:3px;height:3px;border-radius:50%;background:#cfd6ff;opacity:0;animation:twinkle var(--d) var(--l) infinite ease-in-out}
+.spark{position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:50}
+.env{transform:perspective(800px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .25s ease-out;animation:drop 1s cubic-bezier(.2,1.2,.4,1) backwards,bob 5s 1s ease-in-out infinite}
+.env.open{animation:lift .8s forwards}
+.seal{animation:glow 3s ease-in-out infinite}
+.env.tick .seal{animation:tick .18s}
+.env.lock .seal{animation:wobble .9s}
+#gate h1{animation:rise .8s .45s both}
+.sub{animation:rise .8s .6s both}
+form{animation:rise .8s .75s both}
+.msg:not(:empty){animation:rise .35s both}
+.go{position:relative;overflow:hidden}
+.go::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-120%);animation:shine 4s 2s infinite}
+.go:hover{translate:0 -2px;box-shadow:0 8px 20px -6px var(--wax)}
+.field.err input{animation:errflash .5s}
+.letter>h2{animation:rise .7s .35s both}
+.letter>.date{animation:rise .7s .5s both}
+.w{animation:fadeword .55s both}
+.from,#reply,.actions,.note{animation:rise .7s var(--tail,1s) both}
+.letter.closing{animation:fold .45s ease-in forwards}
+.ghost{transition:background .2s,translate .2s}
+.ghost:hover{translate:0 -2px}
+.pop{animation:pop .5s}
+@keyframes rise{from{opacity:0;translate:0 14px}}
+@keyframes drop{from{opacity:0;translate:0 -70px;scale:.9}}
+@keyframes bob{50%{translate:0 -9px}}
+@keyframes lift{to{translate:0 -14px;scale:1.05}}
+@keyframes glow{50%{box-shadow:0 4px 10px #0007,inset 0 -3px 6px #0004,0 0 24px 5px rgba(200,57,75,.5)}}
+@keyframes tick{50%{scale:1.14}}
+@keyframes wobble{20%,60%{rotate:-9deg}40%,80%{rotate:9deg}}
+@keyframes shine{40%,100%{transform:translateX(120%)}}
+@keyframes errflash{30%{border-color:var(--err);box-shadow:0 0 0 4px rgba(255,154,139,.25);translate:-6px 0}60%{translate:6px 0}}
+@keyframes fadeword{from{opacity:0;filter:blur(5px)}}
+@keyframes fold{to{transform:perspective(1000px) rotateX(-75deg) translateY(-20px);opacity:0}}
+@keyframes pop{40%{scale:1.18}}
+@keyframes twinkle{50%{opacity:.75;transform:scale(1.7)}}
+@keyframes drift{to{translate:12vmax 8vmax}}
+@media print{.sky,.spark{display:none!important}.w{animation:none!important;opacity:1!important;filter:none!important}}
 [data-theme=ocean]{--wax:#1f9d9a;--wax2:#136b6a}
 [data-theme=gold]{--wax:#c4922a;--wax2:#8a6314}
 [data-theme=violet]{--wax:#7b5cd6;--wax2:#4f3a9e}
@@ -181,7 +225,7 @@ async function rpc(fn, args) {
   throw lastErr;
 }
 
-function setEnv(state) { $("env").classList.remove("busy", "bad"); if (state) $("env").classList.add(state); }
+function setEnv(state) { $("env").classList.remove("busy", "bad", "lock"); if (state) $("env").classList.add(state); }
 
 function startCooldown(sec) {
   lockUntil = Date.now() + sec * 1000; $("go").disabled = true;
@@ -212,16 +256,19 @@ async function openNote(code) {
       if (r.views_left === 0) info += " It can’t be opened again once you close it.";
       else if (r.views_left > 0) info += " It can be opened " + r.views_left + " more time" + (r.views_left === 1 ? "" : "s") + ".";
       $("noteInfo").textContent = info;
+      revealBody(r.body);
+      if (!calm) burst();
       $("env").classList.add("open");
       await wait(calm ? 0 : 750);
       $("gate").hidden = true; $("letter").hidden = false;
       window.scrollTo(0, 0); armIdle();
     } else if (r && r.error === "locked") {
-      setEnv(); say("This note is sealed until " + new Date(r.unlock_at).toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" }) + ". Come back then.", true);
+      setEnv("lock"); say("This note is sealed until " + new Date(r.unlock_at).toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" }) + ". Come back then.", true);
     } else if (r && r.error === "busy") {
       setEnv(); say("Lots of guesses right now. Wait a minute and try again.");
     } else {
       setEnv("bad"); fails++;
+      const fld = document.querySelector(".field"); fld.classList.remove("err"); void fld.offsetWidth; fld.classList.add("err");
       say("That code doesn’t match any note. Check the spelling and try again.");
       if (fails >= 5) startCooldown(30);
     }
@@ -233,8 +280,9 @@ async function openNote(code) {
   if (Date.now() >= lockUntil) $("go").disabled = false;
 }
 
-function closeNote() {
+async function closeNote() {
   clearTimeout(idle);
+  if (!$("letter").hidden && !calm) { $("letter").classList.add("closing"); await wait(450); $("letter").classList.remove("closing"); }
   $("letter").hidden = true; $("body").textContent = ""; $("title").textContent = "";
   currentCode = ""; delete document.documentElement.dataset.theme; $("from").textContent = ""; $("replyText").value = "";
   $("gate").hidden = false; setEnv(); $("env").classList.remove("open");
@@ -259,7 +307,7 @@ $("sendReply").onclick = async () => {
   const out = $("replyMsg"); $("sendReply").disabled = true; out.className = "msg info"; out.textContent = "Sending…";
   try {
     const r = await rpc("send_reply", { p_code: currentCode, p_message: m });
-    if (r && r.ok) { out.textContent = "Sent. Thank you!"; $("replyText").value = ""; }
+    if (r && r.ok) { out.className = "msg info pop"; out.textContent = "Sent. Thank you!"; $("replyText").value = ""; }
     else { out.className = "msg"; out.textContent = r && r.error === "busy" ? "You’ve sent a lot of messages. Try again later." : "Couldn’t send that. Please try again."; }
   } catch { out.className = "msg"; out.textContent = "Couldn’t reach the server. Please try again."; }
   $("sendReply").disabled = false;
@@ -275,11 +323,54 @@ addEventListener("beforeprint", () => {
 });
 addEventListener("afterprint", () => { document.title = savedTitle; });
 $("copy").onclick = async () => {
-  try { await navigator.clipboard.writeText($("title").textContent + "\n\n" + $("body").textContent); $("copy").textContent = "Copied"; }
+  try { await navigator.clipboard.writeText($("title").textContent + "\n\n" + $("body").textContent); $("copy").textContent = "Copied"; $("copy").classList.add("pop"); }
   catch { $("copy").textContent = "Select the text to copy"; }
-  setTimeout(() => $("copy").textContent = "Copy note", 1800);
+  setTimeout(() => { $("copy").textContent = "Copy note"; $("copy").classList.remove("pop"); }, 1800);
 };
 addEventListener("online", () => say(""));
+
+// ---- animations ----
+function revealBody(text) {                         // words fade in one by one (spans use textContent: still injection-safe)
+  const el = $("body"); el.textContent = "";
+  const parts = text.split(/(\s+)/), words = parts.filter(p => p.trim()).length;
+  if (calm || words > 450) { el.textContent = text; $("letter").style.setProperty("--tail", ".9s"); return; }
+  const step = Math.min(0.03, 2 / words); let i = 0;
+  for (const p of parts) {
+    if (!p.trim()) { el.append(p); continue; }
+    const w = document.createElement("span"); w.className = "w"; w.textContent = p;
+    w.style.animationDelay = (0.7 + i++ * step) + "s"; el.append(w);
+  }
+  $("letter").style.setProperty("--tail", (0.9 + words * step) + "s");
+}
+function burst() {                                   // sparkle burst when the seal breaks
+  const r = $("env").querySelector(".seal").getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const cols = [getComputedStyle(document.documentElement).getPropertyValue("--wax").trim(), "#ffd98a", "#ffffff", "#9fb4ff"];
+  for (let i = 0; i < 26; i++) {
+    const p = document.createElement("i"); p.className = "spark";
+    p.style.cssText = `left:${cx}px;top:${cy}px;background:${cols[i % cols.length]}`;
+    document.body.append(p);
+    const a = Math.random() * Math.PI * 2, d = 70 + Math.random() * 130;
+    p.animate([{ transform: "translate(-50%,-50%) scale(1)", opacity: 1 },
+      { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d + 40}px)) rotate(${Math.random() * 540}deg) scale(.3)`, opacity: 0 }],
+      { duration: 800 + Math.random() * 500, easing: "cubic-bezier(.15,.7,.3,1)" }).onfinish = () => p.remove();
+  }
+}
+(function () {                                       // twinkling stars + envelope tilt + typing tick
+  const sky = document.createElement("div"); sky.className = "sky"; sky.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 30; i++) {
+    const st = document.createElement("i");
+    st.style.cssText = `left:${Math.random() * 100}%;top:${Math.random() * 100}%;--d:${3 + Math.random() * 4}s;--l:${Math.random() * 5}s`;
+    sky.append(st);
+  }
+  document.body.prepend(sky);
+  if (!calm && matchMedia("(pointer:fine)").matches) addEventListener("pointermove", e => {
+    $("env").style.setProperty("--ry", ((e.clientX / innerWidth - .5) * 14) + "deg");
+    $("env").style.setProperty("--rx", (-(e.clientY / innerHeight - .5) * 10) + "deg");
+  }, { passive: true });
+  $("code").addEventListener("input", () => { const e = $("env"); e.classList.remove("tick"); void e.offsetWidth; e.classList.add("tick"); });
+  $("env").addEventListener("animationend", ev => { if (ev.animationName === "tick") $("env").classList.remove("tick"); });
+})();
 
 // Optional magic link: yoursite/#your-code opens the note straight away.
 // The part after # never leaves the browser, and it is wiped from the address bar once used.
