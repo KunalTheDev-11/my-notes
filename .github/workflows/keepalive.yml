@@ -1,35 +1,3 @@
-Claude
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Keepalive · YML
 name: Keep database awake
 on:
   schedule:
@@ -40,9 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase
+        env:
+          SB_URL: "https://llcegxuzisqsnsgxigoh.supabase.co"
+          SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsY2VneHV6aXNxc25zZ3hpZ29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTE5NDEsImV4cCI6MjEwOTAyNzk0MX0.vNTPbKZfInYf8KgFX1zRQn1g--XKloJenU85imfljFA"
         run: |
-          curl -fsS -X POST "https://llcegxuzisqsnsgxigoh.supabase.co/rest/v1/rpc/get_note" \
-            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsY2VneHV6aXNxc25zZ3hpZ29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTE5NDEsImV4cCI6MjEwOTAyNzk0MX0.vNTPbKZfInYf8KgFX1zRQn1g--XKloJenU85imfljFA" -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsY2VneHV6aXNxc25zZ3hpZ29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTE5NDEsImV4cCI6MjEwOTAyNzk0MX0.vNTPbKZfInYf8KgFX1zRQn1g--XKloJenU85imfljFA" \
-            -H "Content-Type: application/json" -d '{"p_code":"keepalive-ping"}'
- 
-Claude finished the response
+          curl -fsS -X POST "$SB_URL/rest/v1/rpc/get_note" -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" -H "Content-Type: application/json" -d '{"p_code":"keepalive-ping"}'
