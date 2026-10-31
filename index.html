@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Open a note</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0f1424;--ink2:#171d33;--paper:#eef1f7;--text:#1b2033;--muted:#8a93ad;--seal:#4cc3b0;--err:#ff8a7a;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(900px 500px at 50% -10%,#232b4b 0,var(--ink) 70%);color:#e8ebf5;font:16px/1.5 "Instrument Sans",system-ui,sans-serif;display:grid;place-items:center;padding:24px}
+main{width:100%;max-width:560px}
+h1{font:400 clamp(2rem,6vw,2.8rem)/1.1 Newsreader,Georgia,serif;margin:0 0 8px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 28px}
+form{display:flex;gap:10px}
+input{flex:1;min-width:0;font:500 1.15rem "Instrument Sans",sans-serif;letter-spacing:.08em;color:#fff;background:var(--ink2);border:1.5px solid #2b3354;border-radius:12px;padding:15px 16px;outline:none;transition:border-color .2s,box-shadow .2s}
+input:focus{border-color:var(--seal);box-shadow:0 0 0 4px rgba(76,195,176,.18)}
+button{font:600 1rem "Instrument Sans",sans-serif;border:0;border-radius:12px;padding:0 22px;cursor:pointer;background:var(--seal);color:#082a26;transition:transform .1s,filter .2s}
+button:hover{filter:brightness(1.08)}button:active{transform:scale(.97)}
+button:focus-visible,input:focus-visible,.ghost:focus-visible{outline:3px solid #fff;outline-offset:2px}
+button[disabled]{opacity:.6;cursor:wait}
+.msg{min-height:1.5em;margin:14px 2px 0;color:var(--err);font-size:.95rem}
+.msg.info{color:var(--muted)}
+.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.letter{background:var(--paper);color:var(--text);border-radius:6px 6px 14px 14px;padding:clamp(24px,5vw,44px);box-shadow:0 30px 60px -20px #000a;transform-origin:top;animation:unfold .7s cubic-bezier(.2,.8,.2,1)}
+@keyframes unfold{from{transform:perspective(900px) rotateX(-70deg);opacity:0}to{transform:none;opacity:1}}
+.letter h2{font:500 1.7rem/1.2 Newsreader,Georgia,serif;margin:0 0 4px}
+.date{color:#6b7391;font-size:.85rem;margin:0 0 22px}
+.body{font:400 1.2rem/1.75 Newsreader,Georgia,serif;white-space:pre-wrap;overflow-wrap:anywhere;max-width:62ch}
+.actions{display:flex;gap:10px;margin-top:26px}
+.ghost{background:transparent;color:var(--text);border:1.5px solid #c3c9dc;padding:10px 16px;font-size:.9rem}
+.ghost:hover{background:#dfe4f0}
+[hidden]{display:none!important}
+@media(max-width:480px){form{flex-direction:column}button{padding:15px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <section id="gate">
+    <h1>Got a code?</h1>
+    <p class="sub">Type it in to open the note that’s waiting for you.</p>
+    <form id="form" autocomplete="off">
+      <input id="code" type="password" placeholder="Enter your code" aria-label="Secret code" maxlength="100" autofocus required>
+      <button id="go">Open note</button>
+    </form>
+    <p class="msg" id="msg" role="status" aria-live="polite"></p>
+  </section>
+  <article class="letter" id="letter" hidden>
+    <h2 id="title"></h2>
+    <p class="date" id="date"></p>
+    <div class="body" id="body"></div>
+    <div class="actions">
+      <button class="ghost" id="copy">Copy note</button>
+      <button class="ghost" id="lock">Close note</button>
+    </div>
+  </article>
+</main>
+<script>
+// ▼ Fill these in (Supabase → Project Settings → API). The anon key is safe to publish.
+const SUPABASE_URL = "https://llcegxuzisqsnsgxigoh.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsY2VneHV6aXNxc25zZ3hpZ29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTE5NDEsImV4cCI6MjEwOTAyNzk0MX0.vNTPbKZfInYf8KgFX1zRQn1g--XKloJenU85imfljFA";
+
+const $ = id => document.getElementById(id);
+const say = (t, info) => { $("msg").textContent = t; $("msg").className = "msg" + (info ? " info" : ""); };
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+async function fetchNote(code) {
+  let lastErr;
+  for (let i = 0; i < 3; i++) {                       // retry flaky connections
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 10000);
+      const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_note", {
+        method: "POST", signal: ctl.signal,
+        headers: SUPABASE_ANON_KEY.startsWith("sb_")
+          ? { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" }   // new-style publishable key
+          : { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_code: code })
+      });
+      clearTimeout(t);
+      if (res.status >= 500) throw new Error("server");
+      if (!res.ok) throw new Error("bad");
+      return await res.json();
+    } catch (e) { lastErr = e; await wait(500 * (i + 1)); }
+  }
+  throw lastErr;
+}
+
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const code = $("code").value.trim();
+  if (!code) return;
+  $("go").disabled = true; say("Checking…", true);
+  try {
+    const r = await fetchNote(code);
+    if (r.ok) {
+      $("title").textContent = r.title || "A note for you";
+      $("title").hidden = false;
+      $("date").textContent = new Date(r.created_at).toLocaleDateString(undefined, { dateStyle: "long" });
+      $("body").textContent = r.body;                 // textContent = no HTML injection
+      $("gate").hidden = true; $("letter").hidden = false;
+      $("code").value = ""; say("");
+      $("letter").scrollIntoView({ block: "start" });
+    } else if (r.error === "busy") {
+      say("Lots of wrong guesses right now. Wait a minute and try again.");
+    } else {
+      say("That code doesn’t match any note. Check the spelling and try again.");
+      $("code").classList.remove("shake"); void $("code").offsetWidth; $("code").classList.add("shake");
+    }
+  } catch {
+    say("Couldn’t reach the server. Check your connection and try again.");
+  }
+  $("go").disabled = false;
+});
+
+$("lock").onclick = () => {
+  $("letter").hidden = true; $("gate").hidden = false; $("body").textContent = ""; $("code").focus();
+};
+$("copy").onclick = async () => {
+  try { await navigator.clipboard.writeText($("body").textContent); $("copy").textContent = "Copied"; }
+  catch { $("copy").textContent = "Select the text to copy"; }
+  setTimeout(() => $("copy").textContent = "Copy note", 1800);
+};
+</script>
+</body>
+</html>
