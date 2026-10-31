@@ -64,7 +64,19 @@ button:focus-visible,input:focus-visible{outline:3px solid #fff;outline-offset:2
 [hidden]{display:none!important}
 @media(max-width:480px){form{flex-direction:column}.go{padding:15px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media print{body{background:#fff;display:block}.env,#gate,.actions,.note{display:none!important}.letter{box-shadow:none;border-top:0;animation:none;padding:0}}
+.pr-only{display:none}
+@page{margin:20mm 22mm 24mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font:9pt "Instrument Sans",Arial,sans-serif;color:#777}}
+@media print{
+html,body{background:#fff!important;height:auto;min-height:0}
+body{display:block;padding:0;color:#111;font-size:12pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+main{max-width:none;text-align:left}
+#gate,.actions,.note{display:none!important}
+.letter{display:block;background:#fff;color:#111;box-shadow:none;animation:none;transform:none;opacity:1;border:0;border-top:3pt solid var(--wax);border-radius:0;padding:16pt 0 0}
+.letter h2{font-size:26pt;line-height:1.15;color:#000;margin:0 0 6pt;break-after:avoid}
+.date{color:#555;font-size:10pt;margin:0 0 18pt;padding-bottom:12pt;border-bottom:.5pt solid #bbb}
+.body{font-size:12.5pt;line-height:1.7;color:#111;max-width:none;orphans:3;widows:3;hyphens:auto;-webkit-hyphens:auto}
+.pr-only{display:block;margin-top:28pt;padding-top:8pt;border-top:.5pt solid #ccc;font:9pt "Instrument Sans",Arial,sans-serif;color:#777;text-align:center;break-inside:avoid}
+}
 </style>
 </head>
 <body>
@@ -92,10 +104,11 @@ button:focus-visible,input:focus-visible{outline:3px solid #fff;outline-offset:2
     <div class="body" id="body"></div>
     <div class="actions">
       <button class="ghost" id="copy">Copy note</button>
-      <button class="ghost" id="print">Print</button>
+      <button class="ghost" id="print">Print or save PDF</button>
       <button class="ghost" id="lock">Close note</button>
     </div>
     <p class="note">This note closes itself after 5 minutes of inactivity.</p>
+    <p class="pr-only" id="prFoot"></p>
   </article>
 </main>
 
@@ -193,6 +206,15 @@ $("eye").onclick = () => {
 };
 $("lock").onclick = closeNote;
 $("print").onclick = () => print();
+let savedTitle = document.title;
+addEventListener("beforeprint", () => {
+  if ($("letter").hidden) return;
+  savedTitle = document.title;
+  const t = ($("title").textContent || "").replace(/[\\/:*?"<>|]+/g, "").trim().slice(0, 60);
+  document.title = t || "Note";                      // becomes the PDF file name
+  $("prFoot").textContent = "Printed " + new Date().toLocaleDateString(undefined, { dateStyle: "long" });
+});
+addEventListener("afterprint", () => { document.title = savedTitle; });
 $("copy").onclick = async () => {
   try { await navigator.clipboard.writeText($("title").textContent + "\n\n" + $("body").textContent); $("copy").textContent = "Copied"; }
   catch { $("copy").textContent = "Select the text to copy"; }
